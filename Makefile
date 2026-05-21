@@ -61,20 +61,24 @@ naming: ## Verb-prefix, abbreviation, skip-comment, and branch-name checks
 # CODE QUALITY ANALYSIS
 # ═══════════════════════════════════════════════════════════════════════════
 
-sonar: ## Run SonarCloud analysis (pulls token from 1Password)
+# Token resolution order: an exported $SONAR_TOKEN wins; otherwise read it from
+# 1Password using $SONAR_TOKEN_OP_REF (override per your vault layout). The token
+# lives in the "Sonar Token" secure note (Engineering vault); reading it needs an
+# op account that can see it (set OP_ACCOUNT if you have several).
+SONAR_TOKEN_OP_REF ?= op://Engineering/Sonar Token/notesPlain
+
+sonar: ## Run SonarCloud analysis ($SONAR_TOKEN, else read via $SONAR_TOKEN_OP_REF)
 	@echo "$(BLUE)Running SonarCloud analysis...$(NC)"
-	@if ! command -v op >/dev/null 2>&1; then \
-		echo "$(RED)Error: 1Password CLI not found (brew install --cask 1password-cli)$(NC)"; exit 1; \
-	fi
-	@if ! op account get >/dev/null 2>&1; then eval $$(op signin); fi
-	@SONAR_TOKEN=$$(op read "op://Engineering/SONAR_TOKEN/credential" 2>/dev/null) || { \
-		echo "$(RED)Error: Could not read SONAR_TOKEN from 1Password (Engineering vault)$(NC)"; exit 1; \
-	}; \
-	if command -v sonar-scanner >/dev/null 2>&1; then \
-		SONAR_TOKEN=$$SONAR_TOKEN sonar-scanner; \
-	else \
-		echo "$(RED)sonar-scanner not installed (brew install sonar-scanner)$(NC)"; exit 1; \
-	fi
+	@command -v sonar-scanner >/dev/null 2>&1 || { \
+		echo "$(RED)sonar-scanner not installed (brew install sonar-scanner)$(NC)"; exit 1; }
+	@token="$$SONAR_TOKEN"; \
+	if [ -z "$$token" ]; then \
+		command -v op >/dev/null 2>&1 || { \
+			echo "$(RED)Set SONAR_TOKEN, or install the 1Password CLI to read $(SONAR_TOKEN_OP_REF)$(NC)"; exit 1; }; \
+		token=$$(op read "$(SONAR_TOKEN_OP_REF)" 2>/dev/null) || { \
+			echo "$(RED)Could not read a token. Export SONAR_TOKEN, or point SONAR_TOKEN_OP_REF at your 1Password item.$(NC)"; exit 1; }; \
+	fi; \
+	SONAR_TOKEN=$$token sonar-scanner
 
 # ═══════════════════════════════════════════════════════════════════════════
 # AI CODE REVIEW

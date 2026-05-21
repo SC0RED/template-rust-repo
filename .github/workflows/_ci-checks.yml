@@ -59,7 +59,7 @@ jobs:
           export-env: true
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-          SONAR_TOKEN: op://Engineering/SONAR_TOKEN/credential
+          SONAR_TOKEN: op://Engineering/Sonar Token/notesPlain
       - name: SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@master
         env:
