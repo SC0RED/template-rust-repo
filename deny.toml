@@ -1,0 +1,41 @@
+# cargo-deny configuration — `make security` runs `cargo deny check`.
+# Supply-chain + license enforcement, the Rust analog of pip-audit + license review.
+
+[advisories]
+version = 2
+yanked = "deny"
+# Add advisory IDs here only with a comment justifying the exception.
+ignore = []
+
+[licenses]
+version = 2
+# This crate is private (publish = false) and carries no license field — skip it.
+private = { ignore = true }
+# The allow-list is a permissive superset for downstream services, so don't fail
+# when one isn't present in today's (minimal) dependency tree.
+unused-allowed-license = "allow"
+# Permissive licenses we accept in the dependency tree. Add deliberately.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "Zlib",
+    "MPL-2.0",
+    "CC0-1.0",
+]
+confidence-threshold = 0.9
+
+[bans]
+# Duplicate versions are a warning (transitive dep graphs make zero impractical);
+# wildcard version requirements are forbidden (non-reproducible builds).
+multiple-versions = "warn"
+wildcards = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"

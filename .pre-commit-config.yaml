@@ -1,0 +1,104 @@
+# Pre-commit configuration — local enforcement, mirrored by CI.
+# Install: pre-commit install --install-hooks
+#          pre-commit install --hook-type commit-msg --hook-type pre-push
+
+default_install_hook_types: [pre-commit, commit-msg, pre-push]
+
+repos:
+  # ───────────────────────────────────────────────────────────────────────────
+  # STANDARD FILE CHECKS
+  # ───────────────────────────────────────────────────────────────────────────
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+        args: [--unsafe]
+      - id: check-json
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ["--maxkb=1000"]
+      - id: detect-private-key
+        exclude: '^\.gitleaks\.toml$'
+      - id: no-commit-to-branch
+        args:
+          ["--branch", "development", "--branch", "testing", "--branch", "demo", "--branch", "production"]
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # SECRET DETECTION
+  # ───────────────────────────────────────────────────────────────────────────
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.0
+    hooks:
+      - id: gitleaks
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # COMMIT MESSAGE
+  # ───────────────────────────────────────────────────────────────────────────
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v3.13.0
+    hooks:
+      - id: commitizen
+        stages: [commit-msg]
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # RUST QUALITY + NAMING (local)
+  # ───────────────────────────────────────────────────────────────────────────
+  - repo: local
+    hooks:
+      - id: rustfmt
+        name: rustfmt (format check)
+        entry: cargo fmt --all --check
+        language: system
+        types: [rust]
+        pass_filenames: false
+
+      - id: clippy
+        name: clippy (warnings = errors)
+        entry: cargo clippy --all-targets --all-features -- -D warnings
+        language: system
+        types: [rust]
+        pass_filenames: false
+
+      - id: check-naming
+        name: Check generic file names
+        entry: scripts/check_naming.sh
+        language: script
+        pass_filenames: false
+        always_run: true
+
+      - id: check-abbreviations
+        name: Check forbidden abbreviations
+        entry: scripts/check_abbreviations.sh
+        language: script
+        pass_filenames: false
+        always_run: true
+
+      - id: check-skip-comments
+        name: Check for forbidden skip comments
+        entry: scripts/check_skip_comments.sh
+        language: script
+        pass_filenames: false
+        always_run: true
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # PRE-PUSH
+  # ───────────────────────────────────────────────────────────────────────────
+  - repo: local
+    hooks:
+      - id: branch-name
+        name: Validate branch name
+        entry: scripts/check_branch_name.sh
+        language: script
+        stages: [pre-push]
+        always_run: true
+
+      - id: cargo-audit
+        name: Dependency vulnerability audit
+        entry: cargo audit
+        language: system
+        stages: [pre-push]
+        pass_filenames: false
+        always_run: true

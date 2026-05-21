@@ -1,0 +1,27 @@
+# CODEOWNERS for Sc0red Repository
+# These owners will be requested for review when someone opens a pull request.
+
+# Default owners for everything in the repo
+*                       @Sc0red/engineering
+
+# Infrastructure code requires platform team review
+/infra/                 @Sc0red/platform
+/.github/workflows/     @Sc0red/platform
+/scripts/               @Sc0red/platform
+
+# Core application code
+/src/                   @Sc0red/backend
+
+# Tests can be reviewed by any engineer
+/tests/                 @Sc0red/engineering
+/infra_tests/          @Sc0red/engineering
+
+# Documentation
+*.md                    @Sc0red/engineering
+CLAUDE.md              @Sc0red/leads
+STANDARDS.md           @Sc0red/leads
+
+# Configuration files require lead approval
+pyproject.toml         @Sc0red/leads
+.coderabbit.yaml      @Sc0red/leads
+Makefile              @Sc0red/leads

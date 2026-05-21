@@ -1,0 +1,67 @@
+# =============================================================================
+# PULL REQUEST WORKFLOW — orchestrator for all pre-merge checks.
+# WHEN checks run is defined here; WHAT they do lives in the reusable _*.yml.
+# =============================================================================
+name: Pull Request
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [development, testing, demo, production]
+
+jobs:
+  ci:
+    name: CI
+    uses: ./.github/workflows/_ci-checks.yml
+    secrets:
+      OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+
+  naming:
+    name: Naming
+    uses: ./.github/workflows/_naming-validation.yml
+
+  determine-environment:
+    runs-on: ubuntu-latest
+    name: Determine Environment
+    outputs:
+      environment: ${{ steps.set-env.outputs.environment }}
+    steps:
+      - name: Determine target environment
+        id: set-env
+        run: |
+          case "${{ github.base_ref }}" in
+            production) echo "environment=production" >> "$GITHUB_OUTPUT" ;;
+            demo)       echo "environment=demo" >> "$GITHUB_OUTPUT" ;;
+            testing)    echo "environment=testing" >> "$GITHUB_OUTPUT" ;;
+            *)          echo "environment=development" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+  validate-with-environment:
+    name: Validate
+    needs: determine-environment
+    uses: ./.github/workflows/_deploy.yml
+    with:
+      environment: ${{ needs.determine-environment.outputs.environment }}
+      deploy: false
+    secrets:
+      OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+
+  summary:
+    runs-on: ubuntu-latest
+    name: PR Summary
+    needs: [ci, naming, validate-with-environment]
+    if: always()
+    steps:
+      - name: Generate PR Summary
+        run: |
+          echo "## Pull Request Validation Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "- CI (lint, test, security, sonarcloud): **${{ needs.ci.result }}**" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Naming conventions: **${{ needs.naming.result }}**" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Environment validation: **${{ needs.validate-with-environment.result }}**" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ needs.ci.result }}" != "success" ] || \
+             [ "${{ needs.naming.result }}" != "success" ] || \
+             [ "${{ needs.validate-with-environment.result }}" != "success" ]; then
+            echo "**Some checks failed — review the job results above.**" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "**All checks passed.**" >> "$GITHUB_STEP_SUMMARY"
+          fi

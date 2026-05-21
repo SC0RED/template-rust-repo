@@ -1,0 +1,30 @@
+# =============================================================================
+# POST-MERGE DEPLOY — on merge to a long-lived branch, deploy that environment.
+# development → development, testing → testing, demo → demo, production → production.
+# =============================================================================
+name: Post-Merge Deploy
+
+on:
+  push:
+    branches: [development, testing, demo, production]
+
+jobs:
+  determine-environment:
+    runs-on: ubuntu-latest
+    name: Determine Environment
+    outputs:
+      environment: ${{ steps.set-env.outputs.environment }}
+    steps:
+      - name: Map branch to environment
+        id: set-env
+        run: echo "environment=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    name: Deploy
+    needs: determine-environment
+    uses: ./.github/workflows/_deploy.yml
+    with:
+      environment: ${{ needs.determine-environment.outputs.environment }}
+      deploy: true
+    secrets:
+      OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}

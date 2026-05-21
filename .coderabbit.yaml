@@ -1,0 +1,87 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# CodeRabbit enforces the rules defined in CLAUDE.md
+# This config tells CodeRabbit HOW to enforce those rules during PR reviews
+
+language: en-US
+
+tone_instructions: "Be direct and concise. Flag violations clearly with rule references."
+
+reviews:
+  auto_review:
+    enabled: true
+  request_changes_workflow: true  # Block merge if violations found
+  high_level_summary: true
+
+  path_instructions:
+    - path: "src/**/*.py"
+      instructions: |
+        Be direct and zero-tolerance for sloppiness. This is application code.
+
+        MUST flag these violations (per CLAUDE.md):
+
+        TYPE SAFETY:
+        - Any use of `Any` without a comment explaining circular import
+        - Any use of `typing.cast()`
+        - isinstance()/type() checks on internal code (trust boundaries violation)
+        - hasattr()/getattr() with defaults on internal code
+
+        FUNCTION DESIGN:
+        - Functions over 50 lines
+        - Positional arguments when function has 3+ params (in calls)
+        - Complex inputs not using Pydantic models
+
+        ERROR HANDLING:
+        - Fallback values that mask errors instead of failing fast
+        - Silent failures or swallowed exceptions
+        - Generic exception catches without re-raising
+        - Missing descriptive messages in custom exceptions
+
+        TRUST BOUNDARIES:
+        - Re-validating Pydantic model guarantees
+        - Validating internal interfaces (should only validate at system boundaries)
+
+        ARCHITECTURE:
+        - Unnecessary abstractions without clear benefit
+        - Not following existing codebase patterns
+        - Stateful design where stateless would work
+
+    - path: "infra/**/*.py"
+      instructions: |
+        This is CDK infrastructure code. Verify:
+
+        INFRASTRUCTURE RULES (per CLAUDE.md):
+        - L2/L3 constructs used (L1/Cfn* requires justification comment)
+        - No hardcoded ARNs, account IDs, or secrets
+        - All config comes from CDK context, SSM, or Secrets Manager
+        - Stacks are small and focused (one bounded context)
+        - Stacks are environment-agnostic
+        - Lambda code references src/ directory (not inline)
+
+        CONFIGURATION:
+        - No hardcoded values - everything externalized
+        - Secrets ONLY in AWS Secrets Manager or GitHub Secrets
+        - Config values from proper hierarchy (see CLAUDE.md Configuration Management)
+
+    - path: "tests/**/*.py"
+      instructions: |
+        Verify tests validate BEHAVIOR, not just coverage.
+
+        TEST QUALITY (per CLAUDE.md):
+        - Tests that only assert "no exception thrown" - REJECT
+        - Tests that don't assert meaningful outcomes - REJECT
+        - Tests with shared state between test functions - REJECT
+        - Tests that only execute code without validating behavior - REJECT
+        - Test functions must be independent
+
+    - path: "**/*.md"
+      instructions: |
+        Documentation must be accurate and match the implementation.
+        Do not enforce engineering standards on markdown files.
+
+knowledge_base:
+  learnings:
+    scope: auto
+  issues:
+    scope: auto
+  pull_requests:
+    scope: auto

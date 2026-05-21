@@ -1,0 +1,85 @@
+# =============================================================================
+# REUSABLE BUILD / DEPLOY — parameterized per environment.
+#
+# `deploy: false` runs build + full validation only (used by pull-request.yml).
+# `deploy: true` additionally builds + pushes a container image and rolls the
+# ECS service for the target environment (used by post-merge.yml).
+#
+# This is a long-running-daemon deployment (ECS Fargate), NOT serverless — see
+# the README's "not serverless" note. The service-specific identifiers are
+# GitHub *environment variables* the consuming repo sets:
+#   vars.ECR_REPOSITORY, vars.ECS_CLUSTER, vars.ECS_SERVICE, vars.AWS_REGION
+# =============================================================================
+name: Reusable Build / Deploy
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+      deploy:
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      OP_SERVICE_ACCOUNT_TOKEN:
+        required: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: Build & Validate
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-rust
+      - name: Validate (lint + test + security + naming)
+        run: make check
+      - name: Build container image
+        run: docker build -t service:${{ github.sha }} .
+
+  deploy:
+    if: ${{ inputs.deploy }}
+    needs: build
+    runs-on: ubuntu-latest
+    name: Deploy (${{ inputs.environment }})
+    environment: ${{ inputs.environment }} # GitHub environment → approval gates
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve environment suffix
+        id: env
+        run: echo "upper=$(echo '${{ inputs.environment }}' | tr '[:lower:]' '[:upper:]')" >> "$GITHUB_OUTPUT"
+
+      - name: Load AWS credentials from 1Password
+        uses: 1password/load-secrets-action@v2
+        with:
+          export-env: true
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          AWS_ACCESS_KEY_ID: op://Engineering/AWS_ACCESS_KEY_ID_${{ steps.env.outputs.upper }}/credential
+          AWS_SECRET_ACCESS_KEY: op://Engineering/AWS_SECRET_ACCESS_KEY_${{ steps.env.outputs.upper }}/credential
+
+      - name: Configure AWS region
+        run: echo "AWS_REGION=${{ vars.AWS_REGION || 'us-east-1' }}" >> "$GITHUB_ENV"
+
+      - name: Log in to Amazon ECR
+        id: ecr
+        run: |
+          registry=$(aws ecr describe-registry --query registryId --output text).dkr.ecr.${AWS_REGION}.amazonaws.com
+          aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "$registry"
+          echo "registry=$registry" >> "$GITHUB_OUTPUT"
+
+      - name: Build, tag, and push image
+        run: |
+          image="${{ steps.ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY }}:${{ github.sha }}"
+          docker build -t "$image" .
+          docker push "$image"
+
+      - name: Roll the ECS service
+        run: |
+          aws ecs update-service \
+            --cluster "${{ vars.ECS_CLUSTER }}" \
+            --service "${{ vars.ECS_SERVICE }}" \
+            --force-new-deployment \
+            --region "$AWS_REGION"

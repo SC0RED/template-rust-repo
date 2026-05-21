@@ -1,0 +1,6 @@
+[toolchain]
+# Pin the channel so every developer and CI run uses the same compiler.
+# Bump deliberately; a version change is a reviewable diff.
+channel = "stable"
+components = ["clippy", "rustfmt", "llvm-tools-preview"]
+profile = "minimal"

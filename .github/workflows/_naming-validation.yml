@@ -1,0 +1,52 @@
+name: Reusable Naming Validation
+
+on:
+  workflow_call:
+
+jobs:
+  validate-branch-name:
+    runs-on: ubuntu-latest
+    name: Validate Branch Name
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check branch naming convention
+        run: |
+          chmod +x scripts/check_branch_name.sh
+          ./scripts/check_branch_name.sh
+
+  validate-naming:
+    runs-on: ubuntu-latest
+    name: Validate Naming
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check file names, abbreviations, and skip comments
+        run: |
+          chmod +x scripts/check_naming.sh scripts/check_abbreviations.sh scripts/check_skip_comments.sh
+          ./scripts/check_naming.sh
+          ./scripts/check_abbreviations.sh
+          ./scripts/check_skip_comments.sh
+
+  naming-summary:
+    runs-on: ubuntu-latest
+    needs: [validate-branch-name, validate-naming]
+    if: always()
+    name: Naming Summary
+    steps:
+      - name: Summary
+        run: |
+          echo "## Naming Convention Validation Results" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ needs.validate-branch-name.result }}" == "success" ]; then
+            echo "Branch naming: **Passed**" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Branch naming: **Failed**" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ "${{ needs.validate-naming.result }}" == "success" ]; then
+            echo "File names / abbreviations / skip comments: **Passed**" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "File names / abbreviations / skip comments: **Failed**" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ "${{ needs.validate-branch-name.result }}" != "success" ] || \
+             [ "${{ needs.validate-naming.result }}" != "success" ]; then
+            exit 1
+          fi

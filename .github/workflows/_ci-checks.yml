@@ -1,0 +1,67 @@
+name: Reusable CI Checks
+
+on:
+  workflow_call:
+    inputs:
+      run-sonarcloud:
+        description: "Whether to run SonarCloud analysis"
+        required: false
+        type: boolean
+        default: true
+    secrets:
+      OP_SERVICE_ACCOUNT_TOKEN:
+        required: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    name: Lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-rust
+        with:
+          install-tools: "false"
+      - name: Run lint
+        run: make lint
+
+  test:
+    runs-on: ubuntu-latest
+    name: Test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-rust
+      - name: Run tests with coverage gate
+        run: make test
+
+  security:
+    runs-on: ubuntu-latest
+    name: Security
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-rust
+      - name: Run security checks
+        run: make security
+
+  sonarcloud:
+    runs-on: ubuntu-latest
+    name: SonarCloud
+    if: ${{ inputs.run-sonarcloud }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-rust
+      - name: Generate coverage report
+        run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
+      - name: Load secrets from 1Password
+        uses: 1password/load-secrets-action@v2
+        with:
+          export-env: true
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          SONAR_TOKEN: op://Engineering/SONAR_TOKEN/credential
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ env.SONAR_TOKEN }}

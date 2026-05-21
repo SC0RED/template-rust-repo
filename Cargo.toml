@@ -1,0 +1,52 @@
+[package]
+# Repos created from this template rename `name` to the service name.
+name = "service-template"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.74"
+description = "Sc0red Rust service template."
+publish = false
+
+[lints.rust]
+# Memory-unsafety has no place in a Sc0red service — forbid, not deny.
+unsafe_code = "forbid"
+# Public items must be documented; missing docs is a warning that CI escalates.
+missing_docs = "warn"
+unreachable_pub = "warn"
+rust_2018_idioms = { level = "warn", priority = -1 }
+
+[lints.clippy]
+# Baseline: the full clippy "all" group is denied; "pedantic" is a warning.
+# Group priority is lowered so the specific overrides below win.
+all = { level = "deny", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+
+# Fail-fast, no silent panics in production code (quality-framework "Fail Fast").
+# Allowed in tests via clippy.toml allow-*-in-tests.
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+
+# "No `as` casting" — force explicit, lossless conversions (TryFrom/From).
+as_conversions = "deny"
+
+# Errors on public APIs must be documented (error-handling spec).
+missing_errors_doc = "warn"
+
+# Pedantic lints that are noise for this codebase's conventions.
+module_name_repetitions = "allow"
+
+[dependencies]
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+rand = "0.9"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["json"] }
+hmac = "0.12"
+sha2 = "0.10"
+hex = "0.4"
+
+[dev-dependencies]
+serde_json = "1"

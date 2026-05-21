@@ -1,0 +1,23 @@
+name: "Setup Rust"
+description: "Install the pinned Rust toolchain + components, cargo tooling, and a build cache"
+inputs:
+  install-tools:
+    description: "Install cargo-llvm-cov, cargo-deny, cargo-audit"
+    required: false
+    default: "true"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install pinned toolchain + components
+      shell: bash
+      run: rustup show # reads rust-toolchain.toml (channel + clippy/rustfmt/llvm-tools)
+
+    - name: Cache cargo build
+      uses: Swatinem/rust-cache@v2
+
+    - name: Install cargo tools
+      if: ${{ inputs.install-tools == 'true' }}
+      uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-llvm-cov,cargo-deny,cargo-audit

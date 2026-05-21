@@ -1,0 +1,23 @@
+# Thresholds that encode the code-architecture + quality-framework specs as
+# mechanical clippy checks (see openspec/specs/{code-architecture,quality-framework}).
+
+# code-architecture "No God Functions": at most 3 positional parameters — beyond
+# that, take an options/config struct. clippy counts the `&self` receiver, so 4
+# here means "receiver + 3 params" for methods (free fns may take up to 4).
+too-many-arguments-threshold = 4
+
+# quality-framework "File Size Limits": functions under 50 lines.
+too-many-lines-threshold = 50
+
+# Keep cognitive + type complexity low (AI- and human-readable).
+cognitive-complexity-threshold = 15
+type-complexity-threshold = 250
+
+# `unwrap`/`expect` are denied in production code (see Cargo.toml [lints]) but are
+# idiomatic and allowed in tests, where a panic IS the failure signal.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+
+# Acronyms that may appear bare in doc comments without tripping doc_markdown.
+# `..` keeps clippy's built-in list (OAuth, GraphQL, ...).
+doc-valid-idents = ["GoF", ".."]

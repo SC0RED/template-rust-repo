@@ -1,0 +1,12 @@
+/target
+**/*.rs.bk
+*.log
+.env
+.env.*
+!.env.example
+/.idea
+/.vscode
+.DS_Store
+# coverage output
+*.profraw
+lcov.info
