@@ -33,26 +33,33 @@ protect_branch() {
     echo "🔒 Protecting branch: $BRANCH"
 
     # Create the branch protection rule
+    # The branch-protection API requires typed JSON (booleans/integers/null),
+    # so send a JSON body via --input rather than -f (which stringifies values).
     gh api \
         --method PUT \
         -H "Accept: application/vnd.github+json" \
         "/repos/$REPO/branches/$BRANCH/protection" \
-        -f "required_status_checks[strict]=true" \
-        -f "required_status_checks[contexts][]=lint" \
-        -f "required_status_checks[contexts][]=test" \
-        -f "required_status_checks[contexts][]=security" \
-        -f "required_status_checks[contexts][]=sonarcloud" \
-        -f "enforce_admins=false" \
-        -f "required_pull_request_reviews[dismiss_stale_reviews]=$DISMISS_STALE" \
-        -f "required_pull_request_reviews[require_code_owner_reviews]=$REQUIRE_CODEOWNER" \
-        -f "required_pull_request_reviews[required_approving_review_count]=$REQUIRED_APPROVALS" \
-        -f "restrictions=null" \
-        -f "allow_force_pushes=false" \
-        -f "allow_deletions=false" \
-        -f "block_creations=false" \
-        -f "required_conversation_resolution=true" \
-        -f "lock_branch=false" \
-        -f "allow_fork_syncing=true"
+        --input - <<JSON
+{
+  "required_status_checks": {
+    "strict": true,
+    "contexts": ["lint", "test", "security", "sonarcloud"]
+  },
+  "enforce_admins": false,
+  "required_pull_request_reviews": {
+    "dismiss_stale_reviews": $DISMISS_STALE,
+    "require_code_owner_reviews": $REQUIRE_CODEOWNER,
+    "required_approving_review_count": $REQUIRED_APPROVALS
+  },
+  "restrictions": null,
+  "allow_force_pushes": false,
+  "allow_deletions": false,
+  "block_creations": false,
+  "required_conversation_resolution": true,
+  "lock_branch": false,
+  "allow_fork_syncing": true
+}
+JSON
 
     echo "✅ Branch $BRANCH protected"
     echo ""

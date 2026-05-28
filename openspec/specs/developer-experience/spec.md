@@ -13,18 +13,6 @@ The template MUST be fully set up with a single install command followed by `mak
 - **WHEN** They run the install command and then `make check-all`
 - **THEN** All checks MUST pass with zero configuration beyond documented prerequisites
 
-### Requirement: Git Bot Identity
-
-The template MUST support the SignalField Claude GitHub App bot identity for AI-authored commits. Scripts MUST be provided for:
-- Generating GitHub App installation tokens
-- Pushing as the bot identity
-- The pre-commit gate MUST enforce bot identity on Claude Code commits
-
-#### Scenario: AI Pushes Code
-- **GIVEN** Claude Code has made changes and committed as the bot
-- **WHEN** The push script runs
-- **THEN** The commit MUST appear as authored by `signalfield-claude[bot]` in GitHub
-
 ### Requirement: Branch Initialization
 
 The template MUST include a script to initialize the four-branch strategy (development, testing, demo, production) and set development as the default branch.

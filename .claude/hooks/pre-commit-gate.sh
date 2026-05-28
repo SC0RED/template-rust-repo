@@ -18,18 +18,6 @@ if ! echo "$COMMAND" | grep -qE '\bgit\s+commit\b'; then
     exit 0
 fi
 
-# Require bot identity (GIT_AUTHOR_EMAIL must be set in the command chain)
-BOT_EMAIL="2881343+signalfield-claude[bot]@users.noreply.github.com"
-if ! echo "$COMMAND" | grep -qF "$BOT_EMAIL"; then
-    echo "Commits must use the SignalField Claude bot identity." >&2
-    echo "Export these before committing:" >&2
-    echo '  export GIT_AUTHOR_NAME="signalfield-claude[bot]"' >&2
-    echo "  export GIT_AUTHOR_EMAIL=\"$BOT_EMAIL\"" >&2
-    echo '  export GIT_COMMITTER_NAME="signalfield-claude[bot]"' >&2
-    echo "  export GIT_COMMITTER_EMAIL=\"$BOT_EMAIL\"" >&2
-    exit 2
-fi
-
 # Allow if make check-all is chained before git commit
 if ! echo "$COMMAND" | grep -qE 'make\s+check-all.*&&.*git\s+commit'; then
     echo "CLAUDE.md requires 'make check-all' before every commit." >&2

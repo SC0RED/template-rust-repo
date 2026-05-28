@@ -31,16 +31,9 @@ After the first CI run, add the reusable-workflow check contexts (e.g.
 `CI / Lint`, `CI / Test`, `CI / Security`, `CI / SonarCloud`, `Naming / Naming Summary`)
 to each branch's required status checks.
 
-## Bot identity (AI-authored commits)
+## Local hooks
 
-Claude Code commits as the GitHub App bot so bot authorship is distinct from a
-human developer. The credentials live in the 1Password Engineering vault.
-
-```bash
-./scripts/generate_github_app_token.sh   # mint a short-lived installation token
-./scripts/git_push_as_bot.sh             # push the current branch as the bot
-```
-
-The `.claude` pre-commit gate requires the bot identity and `make check-all`
-before any commit; the post-push hook requires checking CodeRabbit afterward.
-Always open PRs — never push directly to an environment branch.
+The `.claude` pre-commit gate requires `make check-all` and a Conventional
+Commits message before any commit; the post-push hook reminds you to check
+CodeRabbit afterward. Always open PRs — never push directly to an environment
+branch.
