@@ -6,6 +6,7 @@ brew "rustup"            # rustup-init; then `rustup show` installs the pinned t
 brew "cargo-llvm-cov"    # coverage (make test, 90% gate)
 brew "cargo-deny"        # license + advisory + ban checks (make security)
 brew "cargo-audit"       # dependency vulnerability audit (make security)
+brew "sccache"           # shared compile cache across per-agent worktrees (.cargo/config.toml)
 brew "sonar-scanner"     # SonarCloud analysis (make sonar)
 brew "pre-commit"        # git hook runner
 brew "gh"                # GitHub CLI

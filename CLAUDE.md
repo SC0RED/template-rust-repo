@@ -18,6 +18,7 @@ After pushing a PR, address every CodeRabbit comment (`gh pr view --comments`).
 
 ## Conventions
 
+- Never edit/build/deploy from the main checkout — one worktree per agent (`make agent slug=…`; see `docs/guides/PARALLEL_AGENTS.md`)
 - Validate external input at the boundary (serde); trust internal data
 - Public items need `///` docs and explicit return types
 - Errors: build a `ServiceError`, let it propagate; render RFC 7807 at the boundary
