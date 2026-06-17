@@ -1,4 +1,4 @@
-.PHONY: install lint lint-quick test check check-all format security naming sonar review dev run sync-template help
+.PHONY: install lint lint-quick test check check-all format security naming sonar review dev run sync-template help agent agents agent-rm agent-gc
 
 # Colors for output
 BLUE := \033[0;34m
@@ -13,6 +13,24 @@ NC := \033[0m
 
 install: ## Fetch dependencies (toolchain is pinned in rust-toolchain.toml)
 	cargo fetch
+
+# ═══════════════════════════════════════════════════════════════════════════
+# PARALLEL AGENTS — isolated worktrees (docs/guides/PARALLEL_AGENTS.md)
+# ═══════════════════════════════════════════════════════════════════════════
+
+agent: ## Create/attach an isolated worktree + env: make agent slug=feature/GH-1-x [base=development]
+	@test -n "$(slug)" || { echo "Usage: make agent slug=<branch> [base=<branch>]"; exit 1; }
+	@scripts/agent-wt.sh new "$(slug)" $(base)
+
+agents: ## List per-agent worktrees (slot, branch, clean/dirty)
+	@scripts/agent-wt.sh ls
+
+agent-rm: ## Remove a worktree and free its slot: make agent-rm slug=<branch|slug> [force=-f]
+	@test -n "$(slug)" || { echo "Usage: make agent-rm slug=<branch|slug> [force=-f]"; exit 1; }
+	@scripts/agent-wt.sh rm "$(slug)" $(force)
+
+agent-gc: ## Prune worktree registry entries whose directory is gone
+	@scripts/agent-wt.sh gc
 
 # ═══════════════════════════════════════════════════════════════════════════
 # LINTING & FORMATTING
