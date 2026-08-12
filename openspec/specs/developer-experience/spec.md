@@ -17,9 +17,19 @@ The template MUST be fully set up with a single install command followed by `mak
 
 The template MUST include a script to initialize the four-branch strategy (development, testing, demo, production) and set development as the default branch.
 
+#### Scenario: Fresh Repository Initialization
+- **GIVEN** A repository created from this template with only a default branch
+- **WHEN** The branch initialization script runs
+- **THEN** All four branches MUST exist and `development` MUST be the repository default
+
 ### Requirement: Branch Protection Setup
 
 The template MUST include a script to configure GitHub branch protection rules matching the environment protection levels defined in the CI/CD spec.
+
+#### Scenario: Protection Applied to Production
+- **GIVEN** The four branches exist
+- **WHEN** The branch-protection script runs
+- **THEN** `production` MUST require the approval count and status checks named in the CI/CD spec, with admin bypass disabled
 
 ### Requirement: OpenSpec Integration
 

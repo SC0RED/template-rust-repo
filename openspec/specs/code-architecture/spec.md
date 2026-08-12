@@ -21,7 +21,7 @@ Each layer MUST only depend on layers below it (handlers → services → domain
 
 ### Requirement: Module README Documentation
 
-Each module directory that contains more than 3 files SHOULD include a brief README.md (under 20 lines) describing:
+Each module directory above the configured file-count trigger MUST include a brief README.md (under 20 lines) describing:
 - The module's purpose (one sentence)
 - Its public API (what to import)
 - The design pattern used (if any)

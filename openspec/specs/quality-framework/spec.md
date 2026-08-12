@@ -99,6 +99,11 @@ The template MUST include the following documentation:
 - docs/guides/SECRETS_MANAGEMENT.md — 1Password integration workflow
 - docs/design-patterns-guide.md — patterns used in the template with locations
 
+#### Scenario: Documentation File Missing
+- **GIVEN** A repository created from this template with `docs/guides/SECRETS_MANAGEMENT.md` deleted
+- **WHEN** The documentation-suite check runs
+- **THEN** The check MUST exit non-zero and name the missing file
+
 ### Requirement: File Size Limits
 
 Files MUST NOT exceed 300 lines of code (excluding imports, type definitions, and comments). Functions and methods MUST NOT exceed 50 lines. When a file exceeds the limit, it MUST be split into focused, single-responsibility modules. These limits MUST be enforced by code review tooling (CodeRabbit) and SHOULD be enforced by linting rules where available.
