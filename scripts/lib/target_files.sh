@@ -27,7 +27,17 @@ directory="${2:-src}"
 scope="${GATE_SCOPE:-diff}"
 base="${GATE_DIFF_BASE:-origin/development}"
 
-emit_all() { find "$directory" -name "$pattern" -type f 2>/dev/null | sort; }
+# Files that exist only under #[cfg(test)] — `foo_tests.rs`, `tests.rs` — are
+# test code even though the marker lives in the parent that declares the module.
+# The statement helpers can only see markers inside the file itself, so the
+# name-level exclusion happens here, once, for every gate.
+test_file='(_tests?\.rs|/tests?\.rs)$'
+
+emit_all() {
+    find "$directory" -name "$pattern" -type f 2>/dev/null \
+        | { grep -vE "$test_file" || true; } \
+        | sort
+}
 
 if [ "$scope" = "all" ]; then
     emit_all
@@ -59,5 +69,6 @@ changed=$(git diff --name-only --diff-filter=d "$merge_base" HEAD -- "$directory
 
 printf '%s\n' "$changed" \
     | { grep -E "${pattern//\*/.*}$" || true; } \
+    | { grep -vE "$test_file" || true; } \
     | while IFS= read -r file; do [ -n "$file" ] && [ -f "$file" ] && echo "$file"; done \
     | sort
