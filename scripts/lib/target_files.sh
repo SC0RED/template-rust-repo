@@ -14,7 +14,7 @@
 # GATE_SCOPE=all overrides this, for the deliberate burndown pass and for a
 # repository adopting the gates from empty.
 #
-# Usage: target_files.sh [glob]     (default '*.rs')
+# Usage: target_files.sh [glob] [directory]     (defaults '*.rs' and 'src')
 #
 set -euo pipefail
 
@@ -23,10 +23,11 @@ script_dir="$(cd "$(dirname "$0")/.." && pwd)"
 source "$script_dir/gates.conf"
 
 pattern="${1:-*.rs}"
+directory="${2:-src}"
 scope="${GATE_SCOPE:-diff}"
 base="${GATE_DIFF_BASE:-origin/development}"
 
-emit_all() { find src -name "$pattern" -type f | sort; }
+emit_all() { find "$directory" -name "$pattern" -type f 2>/dev/null | sort; }
 
 if [ "$scope" = "all" ]; then
     emit_all
@@ -53,7 +54,7 @@ fi
 # An empty diff is the ordinary case — most branches touch no source at all — so
 # grep finding nothing must not fail the pipeline. Under `pipefail` an unguarded
 # grep turns "nothing changed" into a broken gate, which is how this first shipped.
-changed=$(git diff --name-only --diff-filter=d "$merge_base" HEAD -- 'src' || true)
+changed=$(git diff --name-only --diff-filter=d "$merge_base" HEAD -- "$directory" || true)
 [ -z "$changed" ] && exit 0
 
 printf '%s\n' "$changed" \
