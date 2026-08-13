@@ -1,0 +1,18 @@
+# Cargo configuration committed to the repo so every checkout — including each
+# per-agent worktree — shares the same build behavior.
+#
+# rustc-wrapper routes compilation through sccache when it is installed (see
+# scripts/rustc-wrapper.sh for the graceful-fallback rationale). This is the
+# half of parallel-agent isolation that the worktree split can't give you on
+# its own: each worktree keeps its OWN ./target (so concurrent `cargo build`s
+# never fight over the same target lock), while sccache lets them SHARE the
+# compiled-artifact cache — so spinning up a fresh worktree doesn't mean a
+# full cold rebuild. See docs/guides/PARALLEL_AGENTS.md.
+#
+# Deliberately NOT set: a shared CARGO_TARGET_DIR. Pointing multiple worktrees
+# at one target/ reintroduces exactly the build-lock contention and artifact
+# clobbering we are eliminating. Isolation via separate target/, sharing via
+# sccache — not the other way around.
+
+[build]
+rustc-wrapper = "scripts/rustc-wrapper.sh"
