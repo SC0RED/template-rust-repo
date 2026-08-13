@@ -13,7 +13,7 @@
 #
 set -euo pipefail
 
-find src -name '*.rs' -type f -print0 | while IFS= read -r -d '' file; do
+"$(cd "$(dirname "$0")" && pwd)/target_files.sh" | while IFS= read -r file; do
     awk -v path="$file" '
         # Entering a #[cfg(test)] block: start counting braces from the next
         # line until they balance back to zero.
