@@ -1,53 +1,137 @@
+<!-- Vendored from SC0RED/sc0red-standards@764f0cd.
+     Do not edit here — fix it in the catalog and let the sync carry it. -->
+
 ## Purpose
 
-Defines the code architecture patterns that ensure maintainable, AI-friendly codebases with clear boundaries and predictable structure.
+Defines the structural shape every sc0red codebase must hold: where responsibility
+lives, which direction dependencies run, and how modules present themselves to each
+other. These are contracts about the codebase, not about any product it serves.
+
+Each requirement names how it is enforced. "Gated" means a script or analyzer fails
+the build. "Review-only" means nothing mechanical checks it — it shapes what gets
+written and what a reviewer looks for, and it can be violated without anything
+turning red. That distinction is stated so nobody mistakes an aspiration for a gate.
 
 ## Requirements
 
 ### Requirement: Layered Architecture
 
-The codebase MUST follow a layered architecture with clear separation of concerns:
-- **Handlers/Routes** — HTTP request handling, input validation, response formatting
-- **Services** — Business logic orchestration, use case implementation
-- **Domain** — Core business rules, entities, value objects
-- **Infrastructure/Adapters** — Database access, external API clients, file I/O
+Code MUST separate boundary, orchestration, domain, and adapter concerns. Boundary code
+handles transport and input validation. Orchestration sequences use cases. Domain holds
+business rules and owns no external dependency. Adapters implement domain-defined
+interfaces to reach databases, queues, and third-party services.
 
-Each layer MUST only depend on layers below it (handlers → services → domain → types). Infrastructure adapters MUST implement domain-defined interfaces.
+Separation is about which concern each piece of code holds, not about how many files or
+modules it is spread across. A short handler whose rules are three lines does not need
+four modules to hold them; splitting it produces ceremony, not architecture. The
+requirement bites when a concern is in the wrong place, not when concerns share a file.
 
-#### Scenario: Handler Contains Business Logic
-- **GIVEN** A route handler contains database queries and business rule validation
-- **WHEN** Code review runs
-- **THEN** The reviewer MUST flag it — business logic belongs in the service layer, database access in the infrastructure layer
+Enforcement: review-only.
 
-### Requirement: Module README Documentation
+#### Scenario: Transport handler contains business rules
+- **GIVEN** A request handler that queries the database and applies eligibility rules inline
+- **WHEN** The change is reviewed
+- **THEN** It MUST be rejected — the rules belong in domain, the query behind an adapter
 
-Each module directory above the configured file-count trigger MUST include a brief README.md (under 20 lines) describing:
-- The module's purpose (one sentence)
-- Its public API (what to import)
-- The design pattern used (if any)
-- Any important constraints or gotchas
+#### Scenario: Domain reaches for a client library
+- **GIVEN** A domain module that imports an HTTP client to fetch a rate
+- **WHEN** The change is reviewed
+- **THEN** It MUST be rejected — domain declares an interface, an adapter implements it
 
-This serves as progressive context disclosure — AI agents read the module README before modifying files in that module.
+#### Scenario: Trivial handler split into a module tree
+- **GIVEN** A signup handler with two rules, restructured into six modules and a trait
+- **WHEN** The change is reviewed
+- **THEN** It MUST be rejected — the concerns were already separable within one file
 
-#### Scenario: AI Modifies Module Without README
-- **GIVEN** An AI agent needs to modify a file in a module without a README
-- **WHEN** The agent reads the module directory
-- **THEN** The agent has no guidance on the module's purpose or patterns, increasing the risk of inconsistent changes
+### Requirement: Dependency Direction
 
-### Requirement: No God Objects or God Functions
+Dependencies MUST point inward: boundary depends on orchestration, orchestration on
+domain, domain on nothing outside itself. An adapter MUST depend on a domain-defined
+interface rather than the domain depending on the adapter.
 
-No single class MUST accumulate more than 5 public methods. No single function MUST accept more than 3 positional parameters (use an options/config object for additional parameters). These limits prevent the accumulation of responsibility that makes code hard for both humans and AI to reason about.
+Enforcement: review-only. No import-graph analyzer exists yet; this becomes gated when
+one is built.
 
-#### Scenario: Class With Too Many Methods
-- **GIVEN** A class has 8 public methods
-- **WHEN** Code review runs
-- **THEN** The reviewer MUST recommend splitting the class into focused, single-responsibility classes
+#### Scenario: Inward-pointing import is rejected
+- **GIVEN** A domain file importing from an adapter module
+- **WHEN** The change is reviewed
+- **THEN** It MUST be rejected and the offending import named
 
-### Requirement: Explicit Over Implicit
+### Requirement: No Circular Dependencies
 
-Configuration, wiring, and dependencies MUST be explicit — never rely on implicit conventions that an AI agent cannot discover by reading the code. Dependency injection MUST be preferred over service locators or global state. Magic strings MUST be replaced with typed constants or enums.
+The module import graph MUST be acyclic.
 
-#### Scenario: Hidden Configuration Convention
-- **GIVEN** A service reads configuration from a file path determined by an undocumented naming convention
-- **WHEN** An AI agent needs to add a new configuration value
-- **THEN** The agent cannot discover the convention without tribal knowledge, leading to errors
+Enforcement: review-only. No import-graph analyzer exists yet.
+
+#### Scenario: Two modules import each other
+- **GIVEN** Module A imports from module B and module B imports from module A
+- **WHEN** The change is reviewed
+- **THEN** It MUST be rejected and the cycle named
+
+### Requirement: Module Public Surface
+
+Each module MUST declare an explicit public API. Consumers MUST import only from that
+declared surface, never from a module's internal files.
+
+Enforcement: review-only. No import-graph analyzer exists yet.
+
+#### Scenario: Consumer reaches past the public surface
+- **GIVEN** Module A imports a helper directly from module B's internal file
+- **WHEN** The change is reviewed
+- **THEN** It MUST be rejected — B's public surface is the only supported entry
+
+### Requirement: Bounded Responsibility
+
+A type MUST NOT exceed the project's configured public-member budget, and a function
+MUST NOT exceed its configured parameter budget. Additional parameters MUST be carried
+in a named structure rather than appended to a signature.
+
+The budgets themselves are not stated here. They are set per repository so a language
+whose idioms differ can hold the same invariant at a different number.
+
+Enforcement: gated by complexity and parameter-count analysis.
+
+#### Scenario: Signature grows past the budget
+- **GIVEN** A function taking one more positional parameter than the configured budget
+- **WHEN** The analyzer runs
+- **THEN** It MUST report a violation and the build MUST fail
+
+### Requirement: Explicit Wiring
+
+Configuration, dependency wiring, and control flow MUST be discoverable by reading the
+code. Behavior MUST NOT depend on an undocumented naming convention, an implicit
+registration side effect, or a value derived from a file path.
+
+Enforcement: review-only.
+
+#### Scenario: Behavior derived from an undocumented convention
+- **GIVEN** A service that loads configuration from a path inferred from its class name
+- **WHEN** An agent adds a new service
+- **THEN** The convention is undiscoverable from the code and the change MUST be rejected
+
+### Requirement: Side Effects at the Edge
+
+Input and output MUST be confined to adapter layers — network calls, filesystem access,
+database queries, clock reads, and randomness. Domain and orchestration code MUST
+receive these as injected dependencies or resolved values.
+
+Enforcement: review-only.
+
+#### Scenario: Domain reads the clock
+- **GIVEN** A domain function calling the system clock directly to decide expiry
+- **WHEN** The change is reviewed
+- **THEN** It MUST be rejected — the current time is an input, passed in by the caller
+
+### Requirement: Single Responsibility Per File
+
+Each source file MUST have one stated responsibility. File names MUST describe that
+responsibility specifically. Generic names — `utils`, `helpers`, `common`, `misc` — MUST
+NOT be used, because they accumulate unrelated code and no reader can predict contents.
+
+Enforcement: gated by a naming check for generic names; the responsibility judgment is
+review-only.
+
+#### Scenario: Generic module name rejected
+- **GIVEN** A new file named `utils` in the project's source directory
+- **WHEN** The naming check runs
+- **THEN** It MUST exit non-zero and name the offending file
