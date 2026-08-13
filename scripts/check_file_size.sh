@@ -12,12 +12,15 @@ script_dir="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=scripts/gates.conf
 source "$script_dir/gates.conf"
 
-over_files=""
-while IFS= read -r -d '' file; do
-    # Production lines only — inline #[cfg(test)] modules are not the file's job.
-    lines=$("$script_dir/lib/list_production_lines.sh" | grep -c "^$file:" || true)
-    [ "$lines" -gt "$MAX_FILE_LINES" ] && over_files="$over_files  $file — $lines lines (budget $MAX_FILE_LINES)"$'\n'
-done < <(find src -name '*.rs' -type f -print0)
+# Count production lines per file in one pass. Calling the helper once per file
+# rescans the whole tree for each file, which is invisible on a template and
+# takes minutes on a real service.
+over_files=$(
+    "$script_dir/lib/list_production_lines.sh" \
+        | cut -d: -f1 \
+        | uniq -c \
+        | awk -v budget="$MAX_FILE_LINES" '$1 > budget { printf "  %s — %d lines (budget %d)\n", $2, $1, budget }'
+)
 
 over_fns=$(awk -v budget="$MAX_FUNCTION_LINES" '
     /^[[:space:]]*(pub )?(async )?fn / { name=$0; start=NR; depth=0; open=0 }
