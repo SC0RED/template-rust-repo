@@ -47,9 +47,16 @@ if [ -z "$merge_base" ]; then
     exit 0
 fi
 
-# Deleted files are excluded: a gate cannot read them, and their violations
-# left with them.
-git diff --name-only --diff-filter=d "$merge_base" HEAD -- 'src' \
-    | grep -E "${pattern//\*/.*}$" \
-    | while IFS= read -r file; do [ -f "$file" ] && echo "$file"; done \
+# Deleted files are excluded: a gate cannot read them, and their violations left
+# with them.
+#
+# An empty diff is the ordinary case — most branches touch no source at all — so
+# grep finding nothing must not fail the pipeline. Under `pipefail` an unguarded
+# grep turns "nothing changed" into a broken gate, which is how this first shipped.
+changed=$(git diff --name-only --diff-filter=d "$merge_base" HEAD -- 'src' || true)
+[ -z "$changed" ] && exit 0
+
+printf '%s\n' "$changed" \
+    | { grep -E "${pattern//\*/.*}$" || true; } \
+    | while IFS= read -r file; do [ -n "$file" ] && [ -f "$file" ] && echo "$file"; done \
     | sort
