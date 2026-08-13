@@ -15,6 +15,8 @@ After pushing a PR, address every CodeRabbit comment (`gh pr view --comments`).
 - Defensive code / silent fallbacks — fail fast; let errors reach a boundary
 - Files > 300 lines, functions > 50 lines, > 3 positional params (use a struct)
 - Generic file names (`utils.rs`, `helpers.rs`) — name for the responsibility
+- Absorbing an error outside a file listed in `ERROR_BOUNDARIES` (`scripts/gates.conf`)
+- Branching on test state in production code; mocking in-process collaborators
 
 ## Conventions
 
@@ -41,8 +43,9 @@ After pushing a PR, address every CodeRabbit comment (`gh pr view --comments`).
 
 ```bash
 make format   # cargo fmt + clippy --fix
-make check    # lint + test + security + naming
+make check    # lint + test + security + naming + gates
 make test     # cargo llvm-cov, 90% line gate
+make gates    # catalog gates — see scripts/gates.conf for the thresholds
 ```
 
 Detail lives in `docs/`. Keep this file under 60 lines — mechanical enforcement

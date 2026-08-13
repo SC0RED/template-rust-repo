@@ -1,0 +1,45 @@
+schema: spec-driven
+
+context: |
+  Rust service template. Axum-style layering, tokio async, thiserror for typed
+  errors, tracing for structured logs. Tests live inline in #[cfg(test)] modules.
+
+  The specs in openspec/specs/ are contracts about the codebase, not about a
+  product. They describe properties the code must have — layering, failure
+  semantics, discoverability — rather than features a user sees. Read them
+  before proposing structural change.
+
+  Mechanical enforcement always outranks instruction. Before writing a rule
+  into a spec or into CLAUDE.md, check whether clippy, a gate in scripts/, or
+  the Sonar quality gate already enforces it. If it does, do not restate it.
+
+  Thresholds are not stated in specs. They live in scripts/gates.conf so the
+  specs stay language-independent and the tuning stays local. A spec says a
+  budget must exist and be enforced; gates.conf says what the number is.
+
+  Forbidden in non-test code: unsafe, unwrap/expect/panic, `as` casts,
+  #[allow(...)] and other suppressions, generic module names, absorbing an
+  error outside a file listed in ERROR_BOUNDARIES.
+
+rules:
+  specs:
+    - State one observable behavior per requirement, with one SHALL or MUST.
+    - Every requirement needs at least one #### Scenario in GIVEN/WHEN/THEN form.
+    - Cover the error and edge cases, not only the happy path.
+    - Name the enforcing gate in the requirement when one exists; if nothing
+      enforces it, say so plainly rather than implying it is checked.
+    - Parameterize any threshold. Reference the gates.conf key, never the number.
+  design:
+    - Keep implementation detail here, out of spec.md.
+    - State which top-level modules the change touches; more than two needs a reason.
+  tasks:
+    - Include running `make check` — it runs lint, test, security, naming, and gates.
+
+operations:
+  apply:
+    guidance:
+      - Run `make gates` early; it is fast and fails on structural problems.
+      - Run `make check` before declaring the work done.
+  archive:
+    guidance:
+      - Confirm the specs describe the code as it now is, not as it was proposed.

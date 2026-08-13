@@ -1,4 +1,4 @@
-.PHONY: install lint lint-quick test check check-all format security naming sonar review dev run sync-template help agent agents agent-rm agent-gc
+.PHONY: install lint lint-quick test check check-all format security naming gates sonar review dev run sync-template help agent agents agent-rm agent-gc
 
 # Colors for output
 BLUE := \033[0;34m
@@ -75,6 +75,24 @@ naming: ## Verb-prefix, abbreviation, skip-comment, and branch-name checks
 	scripts/check_branch_name.sh
 	@echo "$(GREEN)✅ Naming checks passed$(NC)"
 
+gates: ## Spec-catalog gates (specs valid, error boundaries, test seams, migrations, mocking, blast radius)
+	@echo "$(BLUE)Running spec-catalog gates...$(NC)"
+	@command -v openspec >/dev/null 2>&1 \
+		&& openspec validate --specs --strict \
+		|| echo "$(YELLOW)openspec not installed — skipping spec validation$(NC)"
+	scripts/check_error_boundaries.sh
+	scripts/check_test_seams.sh
+	scripts/check_migrations.sh
+	scripts/check_mocking.sh
+	scripts/check_blast_radius.sh
+	scripts/check_failure_coverage.sh
+	scripts/check_project_context.sh
+	scripts/check_agent_instructions.sh
+	scripts/check_module_orientation.sh
+	scripts/check_file_size.sh
+	scripts/check_import_effects.sh
+	@echo "$(GREEN)✅ Catalog gates passed$(NC)"
+
 # ═══════════════════════════════════════════════════════════════════════════
 # CODE QUALITY ANALYSIS
 # ═══════════════════════════════════════════════════════════════════════════
@@ -113,7 +131,7 @@ review: ## AI code review via CodeRabbit (uncommitted changes)
 # COMBINED CHECKS
 # ═══════════════════════════════════════════════════════════════════════════
 
-check: lint test security naming ## Run ALL local checks (lint + test + security + naming)
+check: lint test security naming gates ## Run ALL local checks (lint + test + security + naming + gates)
 	@echo "$(GREEN)✅ All local checks passed$(NC)"
 
 check-all: check sonar ## Run all checks including SonarCloud (required before commit)
