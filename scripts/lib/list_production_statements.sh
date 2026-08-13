@@ -15,7 +15,7 @@
 #
 set -euo pipefail
 
-find src -name '*.rs' -type f -print0 | while IFS= read -r -d '' file; do
+"$(cd "$(dirname "$0")" && pwd)/target_files.sh" | while IFS= read -r file; do
     awk -v path="$file" '
         # Skip the body of any #[cfg(test)] module, brace-matched.
         /^[[:space:]]*#\[cfg\(test\)\]/ { in_test = 1; depth = 0; seen = 0; next }
