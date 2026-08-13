@@ -12,24 +12,38 @@ script_dir="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=scripts/gates.conf
 source "$script_dir/gates.conf"
 
-over_files=""
-while IFS= read -r -d '' file; do
-    # Production lines only — inline #[cfg(test)] modules are not the file's job.
-    lines=$("$script_dir/lib/list_production_lines.sh" | grep -c "^$file:" || true)
-    [ "$lines" -gt "$MAX_FILE_LINES" ] && over_files="$over_files  $file — $lines lines (budget $MAX_FILE_LINES)"$'\n'
-done < <(find src -name '*.rs' -type f -print0)
+# Count production lines per file in one pass. Calling the helper once per file
+# rescans the whole tree for each file, which is invisible on a template and
+# takes minutes on a real service.
+over_files=$(
+    "$script_dir/lib/list_production_lines.sh" \
+        | cut -d: -f1 \
+        | uniq -c \
+        | awk -v budget="$MAX_FILE_LINES" '$1 > budget { printf "  %s — %d lines (budget %d)\n", $2, $1, budget }'
+)
 
-over_fns=$(awk -v budget="$MAX_FUNCTION_LINES" '
-    /^[[:space:]]*(pub )?(async )?fn / { name=$0; start=NR; depth=0; open=0 }
-    start {
-        n=gsub(/\{/,"{"); depth+=n; if (n>0) open=1
-        n=gsub(/\}/,"}"); depth-=n
-        if (open && depth<=0) {
-            if (NR-start > budget) printf "  %s:%d — %d lines (budget %d)\n", FILENAME, start, NR-start, budget
-            start=0
+# FNR, not NR: NR counts records across every file awk was given, so a function
+# in the twentieth file reports a line number in the thousands and the reader
+# cannot find it. Scope comes from target_files.sh like every other gate — the
+# function scan reading the whole tree is what made this fire on branches that
+# changed nothing.
+targets=$("$script_dir/lib/target_files.sh")
+over_fns=""
+if [ -n "$targets" ]; then
+    # shellcheck disable=SC2086
+    over_fns=$(awk -v budget="$MAX_FUNCTION_LINES" '
+        FNR == 1 { start = 0 }
+        /^[[:space:]]*(pub )?(async )?fn / { start = FNR; depth = 0; open = 0 }
+        start {
+            n = gsub(/\{/, "{"); depth += n; if (n > 0) open = 1
+            n = gsub(/\}/, "}"); depth -= n
+            if (open && depth <= 0) {
+                if (FNR - start > budget) printf "  %s:%d — %d lines (budget %d)\n", FILENAME, start, FNR - start, budget
+                start = 0
+            }
         }
-    }
-' $(find src -name '*.rs' -type f) 2>/dev/null || true)
+    ' $targets 2>/dev/null || true)
+fi
 
 if [ -n "$over_files" ] || [ -n "$over_fns" ]; then
     echo "❌ Over the size budget:"

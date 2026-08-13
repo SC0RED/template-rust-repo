@@ -1,4 +1,4 @@
-.PHONY: install lint lint-quick test check check-all format security naming gates sonar review dev run sync-template help agent agents agent-rm agent-gc
+.PHONY: install lint lint-quick test check check-all format security naming gates gates-all sonar review dev run sync-template help agent agents agent-rm agent-gc
 
 # Colors for output
 BLUE := \033[0;34m
@@ -92,6 +92,10 @@ gates: ## Spec-catalog gates (specs valid, error boundaries, test seams, migrati
 	scripts/check_file_size.sh
 	scripts/check_import_effects.sh
 	@echo "$(GREEN)✅ Catalog gates passed$(NC)"
+
+gates-all: ## Catalog gates over the whole tree, not just the diff (debt burndown)
+	@echo "$(BLUE)Running spec-catalog gates over the entire tree...$(NC)"
+	@GATE_SCOPE=all $(MAKE) --no-print-directory gates
 
 # ═══════════════════════════════════════════════════════════════════════════
 # CODE QUALITY ANALYSIS
