@@ -77,7 +77,7 @@ tags = ["api", "key"]
 # 1Password refs are how a value is SUPPOSED to arrive.
 [rules.allowlist]
 regexes = [
-    '''^\$[\{(]?[A-Za-z_]''',
+    '''^\$[\{(]{0,2}\s*[A-Za-z_]''',
     '''^op://''',
 ]
 
@@ -91,7 +91,7 @@ secretGroup = 2
 tags = ["secret", "password"]
 [rules.allowlist]
 regexes = [
-    '''^\$[\{(]?[A-Za-z_]''',
+    '''^\$[\{(]{0,2}\s*[A-Za-z_]''',
     '''^op://''',
 ]
 

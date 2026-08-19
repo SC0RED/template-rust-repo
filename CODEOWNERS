@@ -22,6 +22,7 @@ AGENTS.md               @Sc0red/leads
 
 # Configuration files require lead approval
 Cargo.toml              @Sc0red/leads
+Cargo.lock              @Sc0red/leads
 clippy.toml             @Sc0red/leads
 rustfmt.toml            @Sc0red/leads
 deny.toml               @Sc0red/leads
