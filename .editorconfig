@@ -1,7 +1,7 @@
 # EditorConfig - https://editorconfig.org
 # Ensures consistent coding styles across different editors and IDEs
 #
-# Supported by: VS Code, PyCharm, Cursor, Sublime, Vim, and many others
+# Supported by: VS Code, RustRover, Cursor, Sublime, Vim, and many others
 # Some editors require a plugin: https://editorconfig.org/#download
 
 root = true
@@ -20,10 +20,11 @@ insert_final_newline = true
 max_line_length = 100
 
 # ═══════════════════════════════════════════════════════════════════════════
-# PYTHON
+# RUST
 # ═══════════════════════════════════════════════════════════════════════════
+# Matches rustfmt defaults plus the max_width set in rustfmt.toml.
 
-[*.py]
+[*.rs]
 indent_size = 4
 max_line_length = 100
 

@@ -10,3 +10,5 @@
 # coverage output
 *.profraw
 lcov.info
+# sonar-scanner working directory
+.scannerwork/

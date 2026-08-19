@@ -13,14 +13,13 @@ title = "Sc0red Gitleaks Configuration"
 [allowlist]
 description = "Global allowlist for non-sensitive patterns"
 
-# Files that should be ignored entirely
+# Files that should be ignored entirely.
+# Workflow files are NOT exempt: .github is a normal place for a leaked token to
+# land, so it stays in scope.
 paths = [
     '''\.gitleaks\.toml$''',
     '''\.pre-commit-config\.yaml$''',
-    '''go\.sum$''',
-    '''package-lock\.json$''',
-    '''uv\.lock$''',
-    '''\.github/.*\.ya?ml$''',
+    '''Cargo\.lock$''',
 ]
 
 # Patterns that are NOT secrets (examples, placeholders, etc.)
@@ -74,13 +73,27 @@ description = "Generic API Key"
 regex = '''(?i)(api[_-]?key|apikey)\s*[=:]\s*['\"]?([A-Za-z0-9_\-]{20,})['\"]?'''
 secretGroup = 2
 tags = ["api", "key"]
+# A reference to a secret is not the secret. Shell/GitHub interpolation and
+# 1Password refs are how a value is SUPPOSED to arrive.
+[rules.allowlist]
+regexes = [
+    '''^\$[\{(]?[A-Za-z_]''',
+    '''^op://''',
+]
 
 [[rules]]
 id = "generic-secret"
 description = "Generic Secret"
-regex = '''(?i)(secret|password|passwd|pwd)\s*[=:]\s*['\"]?([^\s'\"]{8,})['\"]?'''
+# Backticks are excluded from the captured value so a markdown code span does not
+# get swallowed into it — that prefix would otherwise defeat the allowlist below.
+regex = '''(?i)(secret|password|passwd|pwd)\s*[=:]\s*['\"`]?([^\s'\"`]{8,})['\"`]?'''
 secretGroup = 2
 tags = ["secret", "password"]
+[rules.allowlist]
+regexes = [
+    '''^\$[\{(]?[A-Za-z_]''',
+    '''^op://''',
+]
 
 [[rules]]
 id = "private-key"
@@ -101,7 +114,9 @@ tags = ["ssh", "key", "private"]
 [[rules]]
 id = "database-url"
 description = "Database Connection URL with credentials"
-regex = '''(?i)(postgres|mysql|mongodb|redis)://[^:]+:[^@]+@[^\s]+'''
+# The user/password segments exclude whitespace so the match cannot run past the
+# end of the line and pick up an unrelated `@` further down the file.
+regex = '''(?i)(postgres|mysql|mongodb|redis)://[^:\s]+:[^@\s]+@[^\s]+'''
 tags = ["database", "url", "credentials"]
 
 # ═══════════════════════════════════════════════════════════════════════════
