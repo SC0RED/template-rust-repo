@@ -13,39 +13,65 @@ reviews:
   high_level_summary: true
 
   path_instructions:
-    - path: "src/**/*.py"
+    - path: "src/**/*.rs"
       instructions: |
         Be direct and zero-tolerance for sloppiness. This is application code.
 
         MUST flag these violations (per CLAUDE.md):
 
         TYPE SAFETY:
-        - Any use of `Any` without a comment explaining circular import
-        - Any use of `typing.cast()`
-        - isinstance()/type() checks on internal code (trust boundaries violation)
-        - hasattr()/getattr() with defaults on internal code
+        - `unsafe` blocks (forbidden outright by the crate lints)
+        - `as` casts — require TryFrom/From so the conversion is lossless or fails
+        - `#[allow(...)]`, `#[cfg_attr(..., allow(...))]`, or any other lint silencing
+        - Stringly-typed data where a newtype or enum carries the invariant
+        - Public items without `///` docs or without an explicit return type
 
         FUNCTION DESIGN:
-        - Functions over 50 lines
-        - Positional arguments when function has 3+ params (in calls)
-        - Complex inputs not using Pydantic models
+        - Functions over 50 lines, files over 300 lines
+        - More than 3 positional parameters (receiver excluded) — take a struct
+        - Generic module names (`utils.rs`, `helpers.rs`) — name for the responsibility
 
         ERROR HANDLING:
-        - Fallback values that mask errors instead of failing fast
-        - Silent failures or swallowed exceptions
-        - Generic exception catches without re-raising
-        - Missing descriptive messages in custom exceptions
+        - `unwrap()`, `expect()`, `panic!`, `todo!`, `unimplemented!` outside `#[cfg(test)]`
+        - Absorbing an error (`ok()`, `unwrap_or_default()`, a swallowing `match`) outside
+          a file listed in ERROR_BOUNDARIES in `scripts/gates.conf`
+        - Fallback values that mask a failure instead of letting the error propagate
+        - New error variants that drop the source error instead of `#[source]`/`#[from]`
+        - `Result` returned from a public fn with no `# Errors` doc section
 
         TRUST BOUNDARIES:
-        - Re-validating Pydantic model guarantees
-        - Validating internal interfaces (should only validate at system boundaries)
+        - Re-validating data whose type already guarantees the invariant
+        - Validating internal interfaces — validate external input at the boundary
+          (serde/deserialization), then trust it
 
         ARCHITECTURE:
+        - Branching on test state in production code (`cfg!(test)`, test-only flags)
+        - Mocking in-process collaborators instead of exercising them
+        - Adding a strategy or runner by any route other than implementing its trait
+          and registering it (see `src/strategies/signature/` for the reference shape)
         - Unnecessary abstractions without clear benefit
         - Not following existing codebase patterns
         - Stateful design where stateless would work
 
-    - path: "infra/**/*.py"
+        `#[cfg(test)]` MODULES (unit tests live inline in the file they cover):
+        Verify they validate BEHAVIOR, not just coverage.
+        - Tests that only assert "it did not panic" - REJECT
+        - Tests that don't assert meaningful outcomes - REJECT
+        - Tests sharing mutable state (statics, `OnceLock`, env vars) across tests - REJECT
+        - Tests that only execute code without validating behavior - REJECT
+        - Each test must be independent and order-agnostic
+        - `unwrap`/`expect` are fine here — a panic IS the failure signal
+
+    - path: "tests/**/*.rs"
+      instructions: |
+        Integration tests exercise the crate through its public API.
+
+        TEST QUALITY (per CLAUDE.md):
+        - Same behavior-over-coverage bar as the unit tests
+        - Reaching for crate internals instead of the public API - REJECT
+        - Shared state or ordering assumptions between test functions - REJECT
+
+    - path: "infra/**/*.ts"
       instructions: |
         This is CDK infrastructure code. Verify:
 
@@ -55,28 +81,40 @@ reviews:
         - All config comes from CDK context, SSM, or Secrets Manager
         - Stacks are small and focused (one bounded context)
         - Stacks are environment-agnostic
-        - Lambda code references src/ directory (not inline)
 
         CONFIGURATION:
         - No hardcoded values - everything externalized
         - Secrets ONLY in AWS Secrets Manager or GitHub Secrets
-        - Config values from proper hierarchy (see CLAUDE.md Configuration Management)
+        - Config values from proper hierarchy (see docs/guides/SECRETS_MANAGEMENT.md)
 
-    - path: "tests/**/*.py"
+    - path: "Dockerfile*"
       instructions: |
-        Verify tests validate BEHAVIOR, not just coverage.
+        This image is what runs on ECS Fargate. Verify:
 
-        TEST QUALITY (per CLAUDE.md):
-        - Tests that only assert "no exception thrown" - REJECT
-        - Tests that don't assert meaningful outcomes - REJECT
-        - Tests with shared state between test functions - REJECT
-        - Tests that only execute code without validating behavior - REJECT
-        - Test functions must be independent
+        - Multi-stage build; the runtime stage carries no toolchain or build cache
+        - Base images pinned to a digest or an explicit version, never `latest`
+        - Runs as a non-root user
+        - No secrets in ARG/ENV or baked into a layer — inject at task-definition time
+
+    - path: ".github/workflows/**"
+      instructions: |
+        Workflows hold deployment credentials. Verify:
+
+        - Third-party actions pinned to a commit SHA, not a moving tag
+        - `permissions:` declared and scoped to the minimum the job needs
+        - AWS access via OIDC role assumption, never long-lived access keys
+        - No secret echoed into logs, an output, or a PR comment
+        - Untrusted PR input never interpolated into a `run:` block
 
     - path: "**/*.md"
       instructions: |
         Documentation must be accurate and match the implementation.
         Do not enforce engineering standards on markdown files.
+
+    - path: "openspec/specs/**"
+      instructions: |
+        These specs are vendored from SC0RED/sc0red-standards by `make sync-standards`.
+        Flag any hand edit — the change belongs upstream in sc0red-standards.
 
 knowledge_base:
   learnings:

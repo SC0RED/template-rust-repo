@@ -1,4 +1,4 @@
-.PHONY: install lint lint-quick test check check-all format security naming gates sonar review dev run sync-template help agent agents agent-rm agent-gc
+.PHONY: install lint lint-quick test check check-all format security naming gates sonar review dev run sync-template sync-standards help agent agents agent-rm agent-gc
 
 # Colors for output
 BLUE := \033[0;34m
@@ -163,6 +163,40 @@ sync-template: ## Pull latest changes from the upstream template repo
 	git fetch template
 	git merge template/development --no-edit
 	@echo "$(GREEN)✅ Template sync complete — review, resolve conflicts, commit$(NC)"
+
+# ═══════════════════════════════════════════════════════════════════════════
+# STANDARDS SYNC
+# ═══════════════════════════════════════════════════════════════════════════
+
+# The commit of SC0RED/sc0red-standards that openspec/specs/ is vendored from.
+# To take a newer catalog: bump this, run `make sync-standards`, commit both the
+# bump and the spec changes. Never hand-edit a vendored spec — fix it upstream.
+STANDARDS_REPO ?= git@github.com:SC0RED/sc0red-standards.git
+STANDARDS_REF  ?= 693d3f583ac9b84b6d10299b8c079911c8d3d017
+
+sync-standards: ## Re-vendor openspec/specs/ from sc0red-standards at STANDARDS_REF
+	@echo "$(BLUE)Syncing specs from sc0red-standards@$(STANDARDS_REF)...$(NC)"
+	@tmp=$$(mktemp -d) || exit 1; \
+	trap 'rm -rf "$$tmp"' EXIT; \
+	git clone --quiet --no-checkout "$(STANDARDS_REPO)" "$$tmp" || { \
+		echo "$(RED)Could not clone $(STANDARDS_REPO)$(NC)"; exit 1; }; \
+	git -C "$$tmp" checkout --quiet "$(STANDARDS_REF)" || { \
+		echo "$(RED)Ref $(STANDARDS_REF) not found in $(STANDARDS_REPO)$(NC)"; exit 1; }; \
+	test -d "$$tmp/specs" || { \
+		echo "$(RED)No specs/ directory at $(STANDARDS_REF)$(NC)"; exit 1; }; \
+	for dir in "$$tmp"/specs/*/; do \
+		domain=$$(basename "$$dir"); \
+		test -f "$$dir/spec.md" || continue; \
+		mkdir -p "openspec/specs/$$domain"; \
+		cp "$$dir/spec.md" "openspec/specs/$$domain/spec.md"; \
+		echo "  synced $$domain"; \
+	done; \
+	for dir in openspec/specs/*/; do \
+		domain=$$(basename "$$dir"); \
+		test -d "$$tmp/specs/$$domain" || \
+			echo "$(YELLOW)  $$domain is vendored here but absent upstream — delete it or move it upstream$(NC)"; \
+	done
+	@echo "$(GREEN)✅ Specs synced — review the diff, then commit$(NC)"
 
 # ═══════════════════════════════════════════════════════════════════════════
 # HELP

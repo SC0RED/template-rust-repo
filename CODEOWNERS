@@ -5,23 +5,27 @@
 *                       @Sc0red/engineering
 
 # Infrastructure code requires platform team review
-/infra/                 @Sc0red/platform
-/.github/workflows/     @Sc0red/platform
+/.github/               @Sc0red/platform
 /scripts/               @Sc0red/platform
+Dockerfile              @Sc0red/platform
 
-# Core application code
+# Core application code (unit tests live inline alongside it)
 /src/                   @Sc0red/backend
-
-# Tests can be reviewed by any engineer
-/tests/                 @Sc0red/engineering
-/infra_tests/          @Sc0red/engineering
 
 # Documentation
 *.md                    @Sc0red/engineering
-CLAUDE.md              @Sc0red/leads
-STANDARDS.md           @Sc0red/leads
+CLAUDE.md               @Sc0red/leads
+AGENTS.md               @Sc0red/leads
+
+# Behavior specs are vendored from sc0red-standards — changes belong upstream
+/openspec/              @Sc0red/leads
 
 # Configuration files require lead approval
-pyproject.toml         @Sc0red/leads
-.coderabbit.yaml      @Sc0red/leads
-Makefile              @Sc0red/leads
+Cargo.toml              @Sc0red/leads
+Cargo.lock              @Sc0red/leads
+clippy.toml             @Sc0red/leads
+rustfmt.toml            @Sc0red/leads
+deny.toml               @Sc0red/leads
+rust-toolchain.toml     @Sc0red/leads
+.coderabbit.yaml        @Sc0red/leads
+Makefile                @Sc0red/leads
