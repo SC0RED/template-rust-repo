@@ -23,10 +23,12 @@ absorbing='\.unwrap_or\(|\.unwrap_or_default\(\)|\.unwrap_or_else\(|\.ok\(\)|if 
 # statement:
 #   try_from(..).unwrap_or(MAX)  saturating arithmetic, no failure to report
 #   .ok()?  and  .ok().ok_or(..)  convert then propagate — the caller still sees it
-# Each is cut out of the statement before it is searched, rather than excusing
-# the whole statement: a statement that propagates one failure and swallows
-# another is still a swallow.
-not_error_handling='try_from\(([^()]|\([^()]*\))*\)[[:space:]]*\.unwrap_or(_else)?\(|\.ok\(\)[[:space:]]*(\?|\.ok_or|\.context)'
+# Each is neutralised in the statement before it is searched, rather than
+# excusing the whole statement: a statement that propagates one failure and
+# swallows another is still a swallow. For try_from only the trailing
+# `.unwrap_or(` goes; the argument is found by balancing parentheses and stays
+# searchable, so `try_from(fetch().unwrap_or_default())` is still caught.
+propagating='\.ok\(\)[[:space:]]*(\?|\.ok_or|\.context)'
 
 # Space-separated path lists from gates.conf, as regex alternatives. Empty words
 # are dropped: a stray double space would otherwise add an empty alternative,
@@ -44,8 +46,33 @@ excluded_filter="$(alternatives "${ERROR_BOUNDARY_EXCLUDED_PATHS:-}")"
 # propagates, and a line-at-a-time gate would call it a swallow.
 violations=$(
     "$script_dir/lib/list_production_statements.sh" \
-        | ABSORBING="$absorbing" NOT_ERROR_HANDLING="$not_error_handling" awk '
-            { searched = $0; gsub(ENVIRON["NOT_ERROR_HANDLING"], "", searched) }
+        | ABSORBING="$absorbing" PROPAGATING="$propagating" awk '
+            # Replace the `.unwrap_or(` that saturates a try_from with an inert
+            # call, leaving the converted argument in place.
+            function saturations_removed(text,    out, at, depth, i, c) {
+                out = ""
+                while ((at = index(text, "try_from(")) > 0) {
+                    out = out substr(text, 1, at + 8)
+                    text = substr(text, at + 9)
+                    depth = 1
+                    for (i = 1; i <= length(text) && depth > 0; i++) {
+                        c = substr(text, i, 1)
+                        if (c == "(") depth++
+                        else if (c == ")") depth--
+                    }
+                    out = out substr(text, 1, i - 1)
+                    text = substr(text, i)
+                    if (match(text, /^[[:space:]]*\.unwrap_or(_else)?\(/)) {
+                        out = out ".saturated("
+                        text = substr(text, RLENGTH + 1)
+                    }
+                }
+                return out text
+            }
+            {
+                searched = saturations_removed($0)
+                gsub(ENVIRON["PROPAGATING"], "", searched)
+            }
             searched ~ ENVIRON["ABSORBING"]
         ' \
         | { grep -vE "^(${boundary_filter:-^$}):" || true; } \

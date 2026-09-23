@@ -20,25 +20,24 @@ source "$script_dir/gates.conf"
 # Directories containing a file this change touched, deletions included:
 # removing a module's README touches that module. Read line by line, not through
 # xargs: GNU xargs runs `dirname` once with no argument on an empty diff, and
-# word-splitting breaks paths that contain spaces.
-touched=$(
+# word-splitting breaks paths that contain spaces. A pipeline throughout, so a
+# failing selector fails the gate rather than reading as an empty change.
+missing=$(
     GATE_INCLUDE_DELETED=1 "$script_dir/lib/target_files.sh" '*' \
         | while IFS= read -r file; do dirname "$file"; done \
-        | sort -u
+        | sort -u \
+        | while IFS= read -r dir; do
+            [ -d "$dir" ] || continue
+            count=$(find "$dir" -maxdepth 1 -name '*.rs' -type f | wc -l | tr -d ' ')
+            [ "$count" -gt "$MODULE_README_TRIGGER" ] || continue
+            [ -f "$dir/README.md" ] && continue
+            echo "  $dir — $count files, no README.md"
+        done
 )
-
-missing=""
-while IFS= read -r dir; do
-    [ -n "$dir" ] && [ -d "$dir" ] || continue
-    count=$(find "$dir" -maxdepth 1 -name '*.rs' -type f | wc -l | tr -d ' ')
-    [ "$count" -gt "$MODULE_README_TRIGGER" ] || continue
-    [ -f "$dir/README.md" ] && continue
-    missing="$missing  $dir — $count files, no README.md"$'\n'
-done <<< "$touched"
 
 if [ -n "$missing" ]; then
     echo "❌ Modules past the orientation trigger with no README:"
-    printf '%s' "$missing"
+    printf '%s\n' "$missing"
     echo ""
     echo "Add a short README: purpose in one sentence, public API, pattern, gotchas."
     exit 1
