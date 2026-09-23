@@ -10,6 +10,10 @@
 # Repos with no migrations/ directory pass trivially — this gate travels with
 # the catalog into repos that do have one.
 #
+# Scoped to the diff like the source gates: a migration added by this change
+# must state its reversal, while ones that predate the gate are debt to burn
+# down rather than a wall on day one. GATE_SCOPE=all reviews every migration.
+#
 set -euo pipefail
 
 if [ ! -d migrations ]; then
@@ -17,23 +21,36 @@ if [ ! -d migrations ]; then
     exit 0
 fi
 
-missing=""
-while IFS= read -r -d '' migration; do
-    case "$migration" in
-        *.down.sql) continue ;;
-    esac
+script_dir="$(cd "$(dirname "$0")" && pwd)"
 
-    # A reversal is either a paired .down.sql or an explicit, reasoned waiver.
-    paired="${migration%.up.sql}.down.sql"
-    [ "$paired" != "$migration" ] && [ -f "$paired" ] && continue
-    grep -qiE '^--[[:space:]]*(rollback|irreversible):' "$migration" && continue
+# The migrations this change touched, each named by its forward half. A changed
+# or deleted .down.sql stands for its .up.sql: deleting the only reversal is the
+# violation, and the untouched .up.sql is where it shows. A pipeline throughout,
+# so a failing selector fails the gate rather than reading as an empty change.
+missing=$(
+    GATE_INCLUDE_DELETED=1 "$script_dir/lib/target_files.sh" '*.sql' migrations \
+        | while IFS= read -r migration; do
+            case "$migration" in
+                (*.down.sql) echo "${migration%.down.sql}.up.sql" ;;
+                (*) echo "$migration" ;;
+            esac
+        done \
+        | sort -u \
+        | while IFS= read -r migration; do
+            [ -f "$migration" ] || continue
 
-    missing="$missing  $migration"$'\n'
-done < <(find migrations -name '*.sql' -type f -print0)
+            # A reversal is either a paired .down.sql or an explicit, reasoned waiver.
+            paired="${migration%.up.sql}.down.sql"
+            [ "$paired" != "$migration" ] && [ -f "$paired" ] && continue
+            grep -qiE '^--[[:space:]]*(rollback|irreversible):' "$migration" && continue
+
+            echo "  $migration"
+        done
+)
 
 if [ -n "$missing" ]; then
     echo "❌ Migrations with no stated reversal:"
-    printf '%s' "$missing"
+    printf '%s\n' "$missing"
     echo ""
     echo "Add a paired .down.sql, or head the file with one of:"
     echo "  -- rollback: <how to undo this>"

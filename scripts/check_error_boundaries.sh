@@ -19,21 +19,67 @@ source "$script_dir/gates.conf"
 # Constructs that absorb an error rather than propagate it.
 absorbing='\.unwrap_or\(|\.unwrap_or_default\(\)|\.unwrap_or_else\(|\.ok\(\)|if let Err\(_\)|Err\(_\)[[:space:]]*=>|let _ =[[:space:]]*[a-z_]*\('
 
-# A fallible integer conversion clamped to a bound is saturating arithmetic,
-# not error handling — there is no failure here for an operator to learn about.
-not_error_handling='try_from\('
+# Constructs that look absorbing on one line but are not, read as a whole
+# statement:
+#   try_from(..).unwrap_or(MAX)  saturating arithmetic, no failure to report
+#   .ok()?  and  .ok().ok_or(..)  convert then propagate — the caller still sees it
+# Each is neutralised in the statement before it is searched, rather than
+# excusing the whole statement: a statement that propagates one failure and
+# swallows another is still a swallow. For try_from only the trailing
+# `.unwrap_or(` goes; the argument is found by balancing parentheses and stays
+# searchable, so `try_from(fetch().unwrap_or_default())` is still caught.
+propagating='\.ok\(\)[[:space:]]*(\?|\.ok_or|\.context)'
 
-boundary_filter='^$'
-if [ -n "$ERROR_BOUNDARIES" ]; then
-    boundary_filter="$(echo "$ERROR_BOUNDARIES" | tr ' ' '\n' | paste -sd'|' -)"
-fi
+# Space-separated path lists from gates.conf, as regex alternatives. Empty words
+# are dropped: a stray double space would otherwise add an empty alternative,
+# which matches every path and switches the gate off.
+alternatives() {
+    printf '%s\n' "$1" | tr -s '[:space:]' '\n' | sed '/^$/d' | paste -sd'|' -
+}
 
+# Declared boundaries, and paths whose code is not request-path Rust and so is
+# not what this gate is for. `^$` matches no record when a list is empty.
+boundary_filter="$(alternatives "$ERROR_BOUNDARIES")"
+excluded_filter="$(alternatives "${ERROR_BOUNDARY_EXCLUDED_PATHS:-}")"
+
+# Read whole statements, not lines: a `.ok()` followed by `?` on the next line
+# propagates, and a line-at-a-time gate would call it a swallow.
 violations=$(
-    "$script_dir/lib/list_production_lines.sh" \
-        | grep -E "$absorbing" \
-        | grep -vE "$not_error_handling" \
-        | grep -vE "^($boundary_filter):" \
-        || true
+    "$script_dir/lib/list_production_statements.sh" \
+        | ABSORBING="$absorbing" PROPAGATING="$propagating" awk '
+            # Replace the `.unwrap_or(` that saturates a try_from with an inert
+            # call, leaving the converted argument in place. The argument is
+            # treated the same way, so nested conversions saturate too.
+            function saturations_removed(text,    out, at, depth, i, c) {
+                out = ""
+                while ((at = index(text, "try_from(")) > 0) {
+                    out = out substr(text, 1, at + 8)
+                    text = substr(text, at + 9)
+                    depth = 1
+                    for (i = 1; i <= length(text) && depth > 0; i++) {
+                        c = substr(text, i, 1)
+                        if (c == "(") depth++
+                        else if (c == ")") depth--
+                    }
+                    # An unbalanced statement has no closing parenthesis to keep.
+                    if (depth > 0) return out saturations_removed(text)
+                    out = out saturations_removed(substr(text, 1, i - 2)) ")"
+                    text = substr(text, i)
+                    if (match(text, /^[[:space:]]*\.unwrap_or(_else)?\(/)) {
+                        out = out ".saturated("
+                        text = substr(text, RLENGTH + 1)
+                    }
+                }
+                return out text
+            }
+            {
+                searched = saturations_removed($0)
+                gsub(ENVIRON["PROPAGATING"], "", searched)
+            }
+            searched ~ ENVIRON["ABSORBING"]
+        ' \
+        | { grep -vE "^(${boundary_filter:-^$}):" || true; } \
+        | { grep -vE "^(${excluded_filter:-^$})" || true; }
 )
 
 if [ -n "$violations" ]; then
