@@ -17,7 +17,7 @@ script_dir="$(cd "$(dirname "$0")" && pwd)"
 # The helper emits "path:line:text", so these match mid-line rather than at ^.
 effectful='(pub )?static [A-Z_]+[^=]*=[[:space:]]*[a-z_][a-z_:]*\(|(pub )?const [A-Z_]+[^=]*=[[:space:]]*[a-z_][a-z_:]*\('
 
-violations=$("$script_dir/lib/list_production_lines.sh" | grep -E "$effectful" || true)
+violations=$("$script_dir/lib/list_production_lines.sh" | { grep -E "$effectful" || true; })
 
 if [ -n "$violations" ]; then
     echo "❌ Work performed at module load:"

@@ -16,6 +16,10 @@
 #
 # Usage: target_files.sh [glob] [directory]     (defaults '*.rs' and 'src')
 #
+# GATE_INCLUDE_DELETED=1 also emits files the diff deleted. A gate that judges a
+# file by its neighbours — a module by its README, a migration by its reversal —
+# needs to see the deletion, because deleting the neighbour is the violation.
+#
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "$0")/.." && pwd)"
@@ -30,8 +34,9 @@ base="${GATE_DIFF_BASE:-origin/development}"
 # Files that exist only under #[cfg(test)] — `foo_tests.rs`, `tests.rs` — are
 # test code even though the marker lives in the parent that declares the module.
 # The statement helpers can only see markers inside the file itself, so the
-# name-level exclusion happens here, once, for every gate.
-test_file='(_tests?\.rs|/tests?\.rs)$'
+# name-level exclusion happens here, once, for every gate. Plural only: a
+# production module can reasonably be called `load_test.rs`.
+test_file='(_tests\.rs|/tests\.rs)$'
 
 emit_all() {
     find "$directory" -name "$pattern" -type f 2>/dev/null \
@@ -58,17 +63,27 @@ if [ -z "$merge_base" ]; then
     exit 0
 fi
 
-# Deleted files are excluded: a gate cannot read them, and their violations left
-# with them.
+# Deleted files are excluded unless asked for: a gate that reads a file's own
+# content cannot read them, and their violations left with them.
+#
+# A failing `git diff` must fail the gate. Swallowing it would turn "could not
+# compare" into "nothing changed" and pass a run that checked nothing.
 #
 # An empty diff is the ordinary case — most branches touch no source at all — so
 # grep finding nothing must not fail the pipeline. Under `pipefail` an unguarded
 # grep turns "nothing changed" into a broken gate, which is how this first shipped.
-changed=$(git diff --name-only --diff-filter=d "$merge_base" HEAD -- "$directory" || true)
+include_deleted="${GATE_INCLUDE_DELETED:-0}"
+diff_filter=d
+[ "$include_deleted" = "1" ] && diff_filter=ACDMRT
+changed=$(git diff --name-only --diff-filter="$diff_filter" "$merge_base" HEAD -- "$directory")
 [ -z "$changed" ] && exit 0
 
 printf '%s\n' "$changed" \
     | { grep -E "${pattern//\*/.*}$" || true; } \
     | { grep -vE "$test_file" || true; } \
-    | while IFS= read -r file; do [ -n "$file" ] && [ -f "$file" ] && echo "$file"; done \
+    | while IFS= read -r file; do
+        [ -n "$file" ] || continue
+        [ "$include_deleted" = "1" ] || [ -f "$file" ] || continue
+        echo "$file"
+    done \
     | sort

@@ -17,12 +17,19 @@ script_dir="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=scripts/gates.conf
 source "$script_dir/gates.conf"
 
-# Directories containing a file this change touched.
-touched=$("$script_dir/lib/target_files.sh" | xargs -n1 dirname 2>/dev/null | sort -u)
+# Directories containing a file this change touched, deletions included:
+# removing a module's README touches that module. Read line by line, not through
+# xargs: GNU xargs runs `dirname` once with no argument on an empty diff, and
+# word-splitting breaks paths that contain spaces.
+touched=$(
+    GATE_INCLUDE_DELETED=1 "$script_dir/lib/target_files.sh" '*' \
+        | while IFS= read -r file; do dirname "$file"; done \
+        | sort -u
+)
 
 missing=""
 while IFS= read -r dir; do
-    [ -n "$dir" ] || continue
+    [ -n "$dir" ] && [ -d "$dir" ] || continue
     count=$(find "$dir" -maxdepth 1 -name '*.rs' -type f | wc -l | tr -d ' ')
     [ "$count" -gt "$MODULE_README_TRIGGER" ] || continue
     [ -f "$dir/README.md" ] && continue

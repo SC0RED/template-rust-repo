@@ -15,7 +15,7 @@ script_dir="$(cd "$(dirname "$0")" && pwd)"
 
 seams='cfg!\(test\)|env::var\("(TEST|TESTING|CI|PYTEST[A-Z_]*)"|is_test|IS_TEST|#\[cfg\(feature = "test'
 
-violations=$("$script_dir/lib/list_production_lines.sh" | grep -E "$seams" || true)
+violations=$("$script_dir/lib/list_production_lines.sh" | { grep -E "$seams" || true; })
 
 if [ -n "$violations" ]; then
     echo "❌ Production code branches on test state:"

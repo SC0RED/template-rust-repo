@@ -23,28 +23,33 @@ absorbing='\.unwrap_or\(|\.unwrap_or_default\(\)|\.unwrap_or_else\(|\.ok\(\)|if 
 # statement:
 #   try_from(..).unwrap_or(MAX)  saturating arithmetic, no failure to report
 #   .ok()?  and  .ok().ok_or(..)  convert then propagate — the caller still sees it
-not_error_handling='try_from\(|\.ok\(\)[[:space:]]*\?|\.ok\(\)[[:space:]]*\.ok_or|\.ok\(\)[[:space:]]*\.context'
+# Each is cut out of the statement before it is searched, rather than excusing
+# the whole statement: a statement that propagates one failure and swallows
+# another is still a swallow.
+not_error_handling='try_from\(([^()]|\([^()]*\))*\)[[:space:]]*\.unwrap_or(_else)?\(|\.ok\(\)[[:space:]]*(\?|\.ok_or|\.context)'
 
-boundary_filter='^$'
-if [ -n "$ERROR_BOUNDARIES" ]; then
-    boundary_filter="$(echo "$ERROR_BOUNDARIES" | tr ' ' '\n' | paste -sd'|' -)"
-fi
+# Space-separated path lists from gates.conf, as regex alternatives. Empty words
+# are dropped: a stray double space would otherwise add an empty alternative,
+# which matches every path and switches the gate off.
+alternatives() {
+    printf '%s\n' "$1" | tr -s '[:space:]' '\n' | sed '/^$/d' | paste -sd'|' -
+}
 
-# Paths whose code is not request-path Rust, and so is not what this gate is for.
-excluded_filter='^$'
-if [ -n "${ERROR_BOUNDARY_EXCLUDED_PATHS:-}" ]; then
-    excluded_filter="$(echo "$ERROR_BOUNDARY_EXCLUDED_PATHS" | tr ' ' '|')"
-fi
+# Declared boundaries, and paths whose code is not request-path Rust and so is
+# not what this gate is for. `^$` matches no record when a list is empty.
+boundary_filter="$(alternatives "$ERROR_BOUNDARIES")"
+excluded_filter="$(alternatives "${ERROR_BOUNDARY_EXCLUDED_PATHS:-}")"
 
 # Read whole statements, not lines: a `.ok()` followed by `?` on the next line
 # propagates, and a line-at-a-time gate would call it a swallow.
 violations=$(
     "$script_dir/lib/list_production_statements.sh" \
-        | grep -E "$absorbing" \
-        | grep -vE "$not_error_handling" \
-        | grep -vE "^($boundary_filter):" \
-        | grep -vE "^($excluded_filter)" \
-        || true
+        | ABSORBING="$absorbing" NOT_ERROR_HANDLING="$not_error_handling" awk '
+            { searched = $0; gsub(ENVIRON["NOT_ERROR_HANDLING"], "", searched) }
+            searched ~ ENVIRON["ABSORBING"]
+        ' \
+        | { grep -vE "^(${boundary_filter:-^$}):" || true; } \
+        | { grep -vE "^(${excluded_filter:-^$})" || true; }
 )
 
 if [ -n "$violations" ]; then

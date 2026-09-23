@@ -23,12 +23,23 @@ fi
 
 script_dir="$(cd "$(dirname "$0")" && pwd)"
 
+# The migrations this change touched, each named by its forward half. A changed
+# or deleted .down.sql stands for its .up.sql: deleting the only reversal is the
+# violation, and the untouched .up.sql is where it shows.
+touched=$(
+    GATE_INCLUDE_DELETED=1 "$script_dir/lib/target_files.sh" '*.sql' migrations \
+        | while IFS= read -r migration; do
+            case "$migration" in
+                (*.down.sql) echo "${migration%.down.sql}.up.sql" ;;
+                (*) echo "$migration" ;;
+            esac
+        done \
+        | sort -u
+)
+
 missing=""
 while IFS= read -r migration; do
-    [ -n "$migration" ] || continue
-    case "$migration" in
-        *.down.sql) continue ;;
-    esac
+    [ -n "$migration" ] && [ -f "$migration" ] || continue
 
     # A reversal is either a paired .down.sql or an explicit, reasoned waiver.
     paired="${migration%.up.sql}.down.sql"
@@ -36,7 +47,7 @@ while IFS= read -r migration; do
     grep -qiE '^--[[:space:]]*(rollback|irreversible):' "$migration" && continue
 
     missing="$missing  $migration"$'\n'
-done < <("$script_dir/lib/target_files.sh" '*.sql' migrations)
+done <<< "$touched"
 
 if [ -n "$missing" ]; then
     echo "❌ Migrations with no stated reversal:"

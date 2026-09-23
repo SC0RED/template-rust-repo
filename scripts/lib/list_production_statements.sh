@@ -32,8 +32,13 @@ set -euo pipefail
             if (statement == "") start = NR
             statement = statement (statement == "" ? "" : " ") line
 
-            # A statement ends at a semicolon or a brace, outside of both.
-            if (line ~ /;[[:space:]]*$/ || line ~ /[{}][[:space:]]*$/) {
+            # A statement ends at a semicolon or a brace, outside of both. A
+            # trailing `// comment` must not hide the terminator, or two
+            # statements merge and one can excuse the other. A `//` with a quote
+            # after it is left alone: that is a URL inside a string literal.
+            code = line
+            sub(/[[:space:]]*\/\/[^"]*$/, "", code)
+            if (code ~ /;[[:space:]]*$/ || code ~ /[{}][[:space:]]*$/) {
                 print path ":" start ":" statement
                 statement = ""
             }
