@@ -28,7 +28,8 @@ missing=$(
         | sort -u \
         | while IFS= read -r dir; do
             [ -d "$dir" ] || continue
-            count=$(find "$dir" -maxdepth 1 -name '*.rs' -type f | wc -l | tr -d ' ')
+            # errexit does not reach inside a command substitution in bash 3.2.
+            count=$(find "$dir" -maxdepth 1 -name '*.rs' -type f | wc -l | tr -d ' ') || exit
             [ "$count" -gt "$MODULE_README_TRIGGER" ] || continue
             [ -f "$dir/README.md" ] && continue
             echo "  $dir — $count files, no README.md"

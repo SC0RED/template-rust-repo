@@ -48,7 +48,8 @@ violations=$(
     "$script_dir/lib/list_production_statements.sh" \
         | ABSORBING="$absorbing" PROPAGATING="$propagating" awk '
             # Replace the `.unwrap_or(` that saturates a try_from with an inert
-            # call, leaving the converted argument in place.
+            # call, leaving the converted argument in place. The argument is
+            # treated the same way, so nested conversions saturate too.
             function saturations_removed(text,    out, at, depth, i, c) {
                 out = ""
                 while ((at = index(text, "try_from(")) > 0) {
@@ -60,7 +61,9 @@ violations=$(
                         if (c == "(") depth++
                         else if (c == ")") depth--
                     }
-                    out = out substr(text, 1, i - 1)
+                    # An unbalanced statement has no closing parenthesis to keep.
+                    if (depth > 0) return out saturations_removed(text)
+                    out = out saturations_removed(substr(text, 1, i - 2)) ")"
                     text = substr(text, i)
                     if (match(text, /^[[:space:]]*\.unwrap_or(_else)?\(/)) {
                         out = out ".saturated("
